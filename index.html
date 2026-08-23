@@ -89,44 +89,31 @@ tr:hover{background:#f8f9ff}
 
 <script>
 var ts = Date.now();
-var SHEETS = [
-{ name: 'Altura', gid: '0' },
-{ name: 'Piso', gid: '1547154724' }
-];
-var BASE_URL = 'https://docs.google.com/spreadsheets/d/1MoNUN_QsAFiHzi5jVbwfHR9Lkn3Fztw6IgOd-BN_4Ks/export?format=csv';
+var DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSfFSMrMjwIzm6eva8_7lo_rd9j4FeVN7W2iH0vNfx-9e9nvWQUvlFYnAw5TL4yO8CGgwMc8liIr3w0/pub?output=tsv&_=' + ts;
 var pieChart, barChart;
 
 function loadData() {
 document.getElementById('statusBar').textContent = 'Conectando con Google Sheets...';
-var urls = SHEETS.map(function(s) {
-return BASE_URL + '&gid=' + s.gid + '&_=' + ts;
-});
-Promise.all(urls.map(function(url, i) {
-return fetch(url, { mode: 'cors', cache: 'no-cache' })
-.then(function(r) { if (!r.ok) throw new Error('Error hoja ' + SHEETS[i].name); return r.text(); })
+fetch(DATA_URL, { mode: 'cors', cache: 'no-cache' })
+.then(function(r) { if (!r.ok) throw new Error('Error al cargar'); return r.text(); })
 .then(function(text) {
-var parsed = Papa.parse(text, { header: false, skipEmptyLines: true });
-var headers = parsed.data[0];
+var lines = text.split('\n');
+var headers = lines[0].split('\t');
 var rows = [];
-for (var j = 1; j < parsed.data.length; j++) {
-var row = parsed.data[j];
-if (!row || row.length < 2) continue;
+for (var i = 1; i < lines.length; i++) {
+var line = lines[i].trim();
+if (!line) continue;
+var cols = line.split('\t');
 var obj = {};
-for (var k = 0; k < headers.length; k++) {
-var key = (headers[k] || '').trim();
-if (!key) key = '_col' + k;
-if (obj[key]) key = key + '_' + k;
-obj[key] = (row[k] || '').trim();
+for (var j = 0; j < headers.length; j++) {
+var key = (headers[j] || '').trim();
+if (!key) key = '_col' + j;
+if (obj[key]) key = key + '_' + j;
+obj[key] = (cols[j] || '').trim();
 }
-obj._sheet = SHEETS[i].name;
 rows.push(obj);
 }
-return rows);
-}))
-.then(function(results) {
-var allRows = [];
-results.forEach(function(r) { allRows = allRows.concat(r); });
-processRows(allRows);
+processRows(rows);
 })
 .catch(function(err) {
 document.getElementById('loadingScreen').classList.add('hidden');
@@ -148,9 +135,9 @@ if (!articulo) return;
 var tipoLoc = (r['tipo loc'] || '').trim();
 var segregado = (r['SEGREGADO'] || '').trim().toUpperCase();
 var destino = (r['DESTINO'] || '').trim();
-var sheet = r._sheet;
+var sheet = tipoLoc.toLowerCase().indexOf('altura') >= 0 ? 'Altura' : 'Piso';
 
-if (tipoLoc === 'Anulada') {
+if (tipoLoc.toLowerCase() === 'anulada') {
 anulada++;
 return;
 }
@@ -233,9 +220,9 @@ var segregado = (r['SEGREGADO'] || '').trim().toUpperCase();
 var destino = (r['DESTINO'] || '').trim();
 var ubicacion = (r['Ubicación'] || '').trim();
 var stock = (r['Stock físico'] || '0').trim();
-var sheet = r._sheet;
+var sheet = tipoLoc.toLowerCase().indexOf('altura') >= 0 ? 'Altura' : 'Piso';
 
-if (tipoLoc === 'Anulada') return;
+if (tipoLoc.toLowerCase() === 'anulada') return;
 
 var estado = 'Pendiente';
 var badgeClass = 'pend';
