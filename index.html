@@ -89,14 +89,12 @@ tr:hover{background:#f8f9ff}
 
 <script>
 var ts = Date.now();
-var DATA_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSfFSMrMjwIzm6eva8_7lo_rd9j4FeVN7W2iH0vNfx-9e9nvWQUvlFYnAw5TL4yO8CGgwMc8liIr3w0/pub?output=tsv&_=' + ts;
+var BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSfFSMrMjwIzm6eva8_7lo_rd9j4FeVN7W2iH0vNfx-9e9nvWQUvlFYnAw5TL4yO8CGgwMc8liIr3w0/pub?output=tsv&_=';
+var URL_ALTURA = BASE + ts;
+var URL_PISO = BASE + ts + '&gid=1547154724';
 var pieChart, barChart;
 
-function loadData() {
-document.getElementById('statusBar').textContent = 'Conectando con Google Sheets...';
-fetch(DATA_URL, { mode: 'cors', cache: 'no-cache' })
-.then(function(r) { if (!r.ok) throw new Error('Error al cargar'); return r.text(); })
-.then(function(text) {
+function parseTSV(text) {
 var lines = text.split('\n');
 var headers = lines[0].split('\t');
 var rows = [];
@@ -113,7 +111,19 @@ obj[key] = (cols[j] || '').trim();
 }
 rows.push(obj);
 }
-processRows(rows);
+return rows;
+}
+
+function loadData() {
+document.getElementById('statusBar').textContent = 'Conectando con Google Sheets...';
+Promise.all([
+fetch(URL_ALTURA, { mode: 'cors', cache: 'no-cache' }).then(function(r) { if (!r.ok) throw new Error('Altura'); return r.text(); }),
+fetch(URL_PISO, { mode: 'cors', cache: 'no-cache' }).then(function(r) { if (!r.ok) throw new Error('Piso'); return r.text(); })
+])
+.then(function(texts) {
+var allRows = [];
+texts.forEach(function(t) { allRows = allRows.concat(parseTSV(t)); });
+processRows(allRows);
 })
 .catch(function(err) {
 document.getElementById('loadingScreen').classList.add('hidden');
