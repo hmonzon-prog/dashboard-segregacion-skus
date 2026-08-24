@@ -76,8 +76,7 @@ tr:hover{background:#f8f9ff}
 
 <div class="table-wrap hidden" id="fechaWrap">
 <h3>Segregados por Fecha</h3>
-<div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>SKUs Segregados</th><th>Hoja Altura</th><th>Hoja Piso</th></tr></thead><tbody id="fechaBody"></tbody></table></div>
-<div style="margin-top:16px"><canvas id="fechaChart" height="100"></canvas></div>
+<div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>Total Segregados</th><th>Altura</th><th>Piso</th></tr></thead><tbody id="fechaBody"></tbody></table></div>
 </div>
 
 <div class="table-wrap hidden" id="summaryWrap">
@@ -98,7 +97,7 @@ var ts = Date.now();
 var BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSfFSMrMjwIzm6eva8_7lo_rd9j4FeVN7W2iH0vNfx-9e9nvWQUvlFYnAw5TL4yO8CGgwMc8liIr3w0/pub?output=tsv&_=';
 var URL_ALTURA = BASE + ts;
 var URL_PISO = BASE + ts + '&gid=1547154724';
-var pieChart, barChart, fechaChart;
+var pieChart, barChart;
 
 function parseTSV(text) {
 var lines = text.split('\n');
@@ -243,7 +242,7 @@ document.getElementById('summaryBody').innerHTML = sumHtml;
 var fechaHtml = '';
 sortedFechas.forEach(function(f) {
 var fs = fechaStats[f];
-fechaHtml += '<tr><td>' + esc(f) + '</td><td><b>' + fs.total + '</b></td><td>' + fs.altura + '</td><td>' + fs.piso + '</td></tr>';
+fechaHtml += '<tr><td><b>' + esc(f) + '</b></td><td>' + fs.total + '</td><td>' + fs.altura + '</td><td>' + fs.piso + '</td></tr>';
 });
 document.getElementById('fechaBody').innerHTML = fechaHtml || '<tr><td colspan="4" style="text-align:center;color:#888">Sin fechas registradas</td></tr>';
 
@@ -273,23 +272,6 @@ datasets: [
 },
 options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
 });
-
-// Gráfico barras por fecha
-var fechaCtx = document.getElementById('fechaChart').getContext('2d');
-if (fechaChart) fechaChart.destroy();
-if (sortedFechas.length > 0) {
-fechaChart = new Chart(fechaCtx, {
-type: 'bar',
-data: {
-labels: sortedFechas,
-datasets: [
-{ label: 'Altura', data: sortedFechas.map(function(f){return fechaStats[f].altura}), backgroundColor: '#3498db', borderRadius: 4 },
-{ label: 'Piso', data: sortedFechas.map(function(f){return fechaStats[f].piso}), backgroundColor: '#f39c12', borderRadius: 4 }
-]
-},
-options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } } }
-});
-}
 
 // Tabla detalle: SOLO segregados OK
 var html = '';
