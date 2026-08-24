@@ -307,7 +307,7 @@ document.getElementById('statusBar').textContent = 'Error de conexión';
 
 var s = document.createElement('script');
 s.src = 'https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js';
-s.onload = function() { loadData(); setInterval(function() { ts = Date.now(); loadData(); }, 60000); };
+s.onload = function() { loadData(); setInterval(function() { ts = Date.now(); loadData(); }, 30000); };
 s.onerror = function() {
 document.getElementById('loadingScreen').innerHTML = '<p style="color:#e63946">Error al cargar librerías. Verificá tu conexión a internet.</p>';
 };
