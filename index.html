@@ -74,14 +74,20 @@ tr:hover{background:#f8f9ff}
 <div class="chart-box"><h3>Por Hoja (Altura / Piso)</h3><canvas id="barChart"></canvas></div>
 </div>
 
+<div class="table-wrap hidden" id="fechaWrap">
+<h3>Segregados por Fecha</h3>
+<div style="overflow-x:auto"><table><thead><tr><th>Fecha</th><th>SKUs Segregados</th><th>Hoja Altura</th><th>Hoja Piso</th></tr></thead><tbody id="fechaBody"></tbody></table></div>
+<div style="margin-top:16px"><canvas id="fechaChart" height="100"></canvas></div>
+</div>
+
 <div class="table-wrap hidden" id="summaryWrap">
 <h3>Resumen por Hoja</h3>
 <div style="overflow-x:auto"><table><thead><tr><th>Hoja</th><th>Total</th><th>Segregados</th><th>Pendientes</th><th>% Avance</th></tr></thead><tbody id="summaryBody"></tbody></table></div>
 </div>
 
 <div class="table-wrap hidden" id="tableWrap">
-<h3>Detalle de SKUs</h3>
-<div style="overflow-x:auto"><table><thead><tr><th>Artículo</th><th>Descripción</th><th>Ubicación</th><th>Tipo Loc</th><th>Stock</th><th>Destino</th><th>Estado</th></tr></thead><tbody id="tableBody"></tbody></table></div>
+<h3>Detalle de SKUs Segregados (OK)</h3>
+<div style="overflow-x:auto"><table><thead><tr><th>Artículo</th><th>Descripción</th><th>Ubicación</th><th>Tipo Loc</th><th>Stock</th><th>Destino</th><th>Fecha</th></tr></thead><tbody id="tableBody"></tbody></table></div>
 </div>
 
 <div id="errorContainer"></div>
@@ -92,7 +98,7 @@ var ts = Date.now();
 var BASE = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSfFSMrMjwIzm6eva8_7lo_rd9j4FeVN7W2iH0vNfx-9e9nvWQUvlFYnAw5TL4yO8CGgwMc8liIr3w0/pub?output=tsv&_=';
 var URL_ALTURA = BASE + ts;
 var URL_PISO = BASE + ts + '&gid=1547154724';
-var pieChart, barChart;
+var pieChart, barChart, fechaChart;
 
 function parseTSV(text) {
 var lines = text.split('\n');
@@ -112,6 +118,15 @@ obj[key] = (cols[j] || '').trim();
 rows.push(obj);
 }
 return rows;
+}
+
+function findFechaCol(row) {
+var keys = Object.keys(row);
+for (var i = 0; i < keys.length; i++) {
+var k = keys[i].toLowerCase();
+if (k === 'fecha' || k === 'date' || k === 'fech') return keys[i];
+}
+return '';
 }
 
 function loadData() {
@@ -137,6 +152,9 @@ if (!rows || rows.length < 1) throw new Error('Sin datos');
 var total = 0, ok = 0, pend = 0, anulada = 0;
 var alturaTotal = 0, pisoTotal = 0;
 var sheetStats = {};
+var okRows = [];
+
+var fechaCol = findFechaCol(rows[0] || {});
 
 rows.forEach(function(r) {
 var articulo = (r['Artículo'] || '').trim();
@@ -144,7 +162,6 @@ if (!articulo) return;
 
 var tipoLoc = (r['tipo loc'] || '').trim();
 var segregado = (r['SEGREGADO'] || '').trim().toUpperCase();
-var destino = (r['DESTINO'] || '').trim();
 var sheet = tipoLoc.toLowerCase().indexOf('altura') >= 0 ? 'Altura' : 'Piso';
 
 if (tipoLoc.toLowerCase() === 'anulada') {
@@ -163,10 +180,31 @@ sheetStats[sheet].total++;
 if (segregado === 'OK') {
 ok++;
 sheetStats[sheet].segregados++;
+okRows.push(r);
 } else {
 pend++;
 sheetStats[sheet].pendientes++;
 }
+});
+
+// Procesar segregados por fecha
+var fechaStats = {};
+okRows.forEach(function(r) {
+var fecha = fechaCol ? (r[fechaCol] || '').trim() : '';
+if (!fecha) fecha = 'Sin fecha';
+if (!fechaStats[fecha]) fechaStats[fecha] = { total: 0, altura: 0, piso: 0 };
+fechaStats[fecha].total++;
+var tipoLoc = (r['tipo loc'] || '').trim();
+var sheet = tipoLoc.toLowerCase().indexOf('altura') >= 0 ? 'Altura' : 'Piso';
+if (sheet === 'Altura') fechaStats[fecha].altura++;
+else fechaStats[fecha].piso++;
+});
+
+// Ordenar fechas
+var sortedFechas = Object.keys(fechaStats).sort(function(a, b) {
+if (a === 'Sin fecha') return 1;
+if (b === 'Sin fecha') return -1;
+return b.localeCompare(a);
 });
 
 document.getElementById('loadingScreen').classList.add('hidden');
@@ -174,6 +212,10 @@ document.getElementById('cards').classList.remove('hidden');
 document.getElementById('charts').classList.remove('hidden');
 document.getElementById('tableWrap').classList.remove('hidden');
 document.getElementById('summaryWrap').classList.remove('hidden');
+
+if (okRows.length > 0) {
+document.getElementById('fechaWrap').classList.remove('hidden');
+}
 
 document.getElementById('totalSku').textContent = total;
 document.getElementById('okSku').textContent = ok;
@@ -187,6 +229,7 @@ document.getElementById('avanceSeg').textContent = ok + ' / ' + total + ' (' + p
 
 document.getElementById('statusBar').innerHTML = 'Google Sheets (Altura + Piso) | ' + total + ' SKUs activos | Segregados: ' + ok + ' | Pendientes: ' + pend;
 
+// Tabla resumen por hoja
 var sumHtml = '';
 Object.keys(sheetStats).forEach(function(sheet) {
 var s = sheetStats[sheet];
@@ -196,6 +239,15 @@ sumHtml += '<tr><td><span class="badge ' + badgeClass + '">' + esc(sheet) + '</s
 });
 document.getElementById('summaryBody').innerHTML = sumHtml;
 
+// Tabla segregados por fecha
+var fechaHtml = '';
+sortedFechas.forEach(function(f) {
+var fs = fechaStats[f];
+fechaHtml += '<tr><td>' + esc(f) + '</td><td><b>' + fs.total + '</b></td><td>' + fs.altura + '</td><td>' + fs.piso + '</td></tr>';
+});
+document.getElementById('fechaBody').innerHTML = fechaHtml || '<tr><td colspan="4" style="text-align:center;color:#888">Sin fechas registradas</td></tr>';
+
+// Gráfico pie
 var pieCtx = document.getElementById('pieChart').getContext('2d');
 if (pieChart) pieChart.destroy();
 pieChart = new Chart(pieCtx, {
@@ -207,6 +259,7 @@ datasets: [{ data: [ok, pend], backgroundColor: ['#2ec4b6','#ff9f1c'], borderWid
 options: { responsive: true, plugins: { legend: { position: 'bottom' } } }
 });
 
+// Gráfico barras por hoja
 var barCtx = document.getElementById('barChart').getContext('2d');
 if (barChart) barChart.destroy();
 barChart = new Chart(barCtx, {
@@ -221,28 +274,38 @@ datasets: [
 options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } }
 });
 
+// Gráfico barras por fecha
+var fechaCtx = document.getElementById('fechaChart').getContext('2d');
+if (fechaChart) fechaChart.destroy();
+if (sortedFechas.length > 0) {
+fechaChart = new Chart(fechaCtx, {
+type: 'bar',
+data: {
+labels: sortedFechas,
+datasets: [
+{ label: 'Altura', data: sortedFechas.map(function(f){return fechaStats[f].altura}), backgroundColor: '#3498db', borderRadius: 4 },
+{ label: 'Piso', data: sortedFechas.map(function(f){return fechaStats[f].piso}), backgroundColor: '#f39c12', borderRadius: 4 }
+]
+},
+options: { responsive: true, plugins: { legend: { position: 'bottom' } }, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1 } } } }
+});
+}
+
+// Tabla detalle: SOLO segregados OK
 var html = '';
-rows.forEach(function(r) {
+okRows.forEach(function(r) {
 var articulo = (r['Artículo'] || '').trim();
-if (!articulo) return;
 var tipoLoc = (r['tipo loc'] || '').trim();
-var segregado = (r['SEGREGADO'] || '').trim().toUpperCase();
 var destino = (r['DESTINO'] || '').trim();
 var ubicacion = (r['Ubicación'] || '').trim();
 var stock = (r['Stock físico'] || '0').trim();
+var fecha = fechaCol ? (r[fechaCol] || '').trim() : '-';
 var sheet = tipoLoc.toLowerCase().indexOf('altura') >= 0 ? 'Altura' : 'Piso';
-
-if (tipoLoc.toLowerCase() === 'anulada') return;
-
-var estado = 'Pendiente';
-var badgeClass = 'pend';
-if (segregado === 'OK') { estado = 'Segregado'; badgeClass = 'segregado'; }
-
 var sheetBadge = sheet === 'Altura' ? 'altura' : 'piso';
 
-html += '<tr><td>' + esc(articulo) + '</td><td>' + esc(r['Descripción']) + '</td><td>' + esc(ubicacion) + '</td><td><span class="badge ' + sheetBadge + '">' + esc(tipoLoc) + '</span></td><td>' + esc(stock) + '</td><td>' + esc(destino || '-') + '</td><td><span class="badge ' + badgeClass + '">' + estado + '</span></td></tr>';
+html += '<tr><td>' + esc(articulo) + '</td><td>' + esc(r['Descripción']) + '</td><td>' + esc(ubicacion) + '</td><td><span class="badge ' + sheetBadge + '">' + esc(tipoLoc) + '</span></td><td>' + esc(stock) + '</td><td>' + esc(destino || '-') + '</td><td>' + esc(fecha) + '</td></tr>';
 });
-document.getElementById('tableBody').innerHTML = html || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#888">Sin datos</td></tr>';
+document.getElementById('tableBody').innerHTML = html || '<tr><td colspan="7" style="text-align:center;padding:20px;color:#888">Sin SKUs segregados</td></tr>';
 }
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
